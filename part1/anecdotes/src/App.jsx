@@ -1,8 +1,5 @@
 import { useState } from 'react';
-
-const Button = (props) => (
-  <button onClick={props.handleClick}>{props.text}</button>
-);
+import Button from './Button'
 
 const App = () => {
   const anecdotes = [
