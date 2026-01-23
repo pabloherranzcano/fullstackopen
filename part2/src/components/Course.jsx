@@ -26,6 +26,7 @@ const Course = ({ course }) => {
     <>
       <Header course={course} />
       <Content course={course} />
+      {'Total of ' + course.parts.reduce((sum, part) => sum + part.exercises, 0) + ' exercises'}
     </>
   );
 };
