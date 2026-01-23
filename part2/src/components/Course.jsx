@@ -28,7 +28,7 @@ const Course = ({ course }) => {
     <>
       <Header course={course} />
       <Content course={course} />
-      {'Total of ' + total + ' exercises'}
+      <b>Total of {total} exercises</b>
     </>
   );
 };
