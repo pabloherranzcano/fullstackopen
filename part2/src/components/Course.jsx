@@ -22,11 +22,13 @@ const Part = ({ part }) => {
   );
 };
 const Course = ({ course }) => {
+  const total = course.parts.reduce((sum, part) => sum + part.exercises, 0)
+
   return (
     <>
       <Header course={course} />
       <Content course={course} />
-      {'Total of ' + course.parts.reduce((sum, part) => sum + part.exercises, 0) + ' exercises'}
+      {'Total of ' + total + ' exercises'}
     </>
   );
 };
