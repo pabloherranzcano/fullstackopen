@@ -2,8 +2,18 @@ import { useState } from 'react';
 import Filter from './components/Filter';
 import PersonForm from './components/PersonForm';
 import Persons from './components/Persons';
+import axios from 'axios';
+import { useEffect } from 'react';
 
 const App = () => {
+  const hook = () => {
+    axios.get('http://localhost:3001/persons').then((response) => {
+      console.log(response.data);
+    });
+  };
+
+  useEffect(hook, []);
+
   const [persons, setPersons] = useState([
     { name: 'Arto Hellas', number: '040-123456', id: 1 },
     { name: 'Ada Lovelace', number: '39-44-5323523', id: 2 },
@@ -39,7 +49,9 @@ const App = () => {
       number: newNumber,
     };
     const existingPerson = persons.find(
-      (person) => person.name.toLocaleLowerCase() === personObject.name.toLocaleLowerCase(),
+      (person) =>
+        person.name.toLocaleLowerCase() ===
+        personObject.name.toLocaleLowerCase(),
     );
 
     if (existingPerson) {
