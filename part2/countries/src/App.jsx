@@ -14,17 +14,17 @@ const App = () => {
   const [showDetails, setShowDetails] = useState(['', false]);
   const [weather, setWeather] = useState({});
 
-  const counrtryHook = () => {
+  useEffect(() => {
     countriesService.getAll().then((response) => {
-      setCountries(countries.concat(response));
+      setCountries(response);
     });
-  };
-
-  useEffect(counrtryHook, []);
+  }, []);
 
   useEffect(() => {
     if (!showDetails[1]) return;
-    const country = filteredCountries.find((c) => c.name.common === showDetails[0]);
+    const country = filteredCountries.find(
+      (c) => c.name.common === showDetails[0],
+    );
     const capital = country?.capital?.[0];
     if (!capital) return;
 
