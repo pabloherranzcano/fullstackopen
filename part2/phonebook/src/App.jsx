@@ -2,14 +2,17 @@ import { useState } from 'react';
 import Filter from './components/Filter';
 import PersonForm from './components/PersonForm';
 import Persons from './components/Persons';
-import PersonsService from './services/persons';
+import PersonsService from './services/personService';
 import { useEffect } from 'react';
+import Notification from './components/Notification';
 
 const App = () => {
   const [persons, setPersons] = useState([]);
   const [newName, setNewName] = useState('');
   const [newNumber, setNewNumber] = useState('');
   const [filterName, setFilterName] = useState('');
+  const [notificationMessage, setNotificationMessage] = useState(null);
+  const [isErrorNotification, setNotificationType] = useState(false);
 
   const getPersons = () => {
     PersonsService.getAll().then((initialPersons) => {
@@ -52,38 +55,90 @@ const App = () => {
 
     if (existingPerson) {
       window.confirm(`Update ${existingPerson.name}'s number?`) &&
-        PersonsService.update(existingPerson.id, personObject).then(
-          (response) => {
+        PersonsService.update(existingPerson.id, personObject)
+          .then((response) => {
             setPersons(
               persons.map((person) =>
                 person.id !== existingPerson.id ? person : response,
               ),
             );
-          },
-        );
+            setNotificationType(false);
+            setNotificationMessage(`'${personObject.name}' updated`);
+            setTimeout(() => {
+              setNotificationMessage(null);
+            }, 5000);
+          })
+          .catch((error) => {
+            console.log(error);
+            setNotificationType(true);
+            setNotificationMessage(
+              `There has been a problem trying to update '${personObject.name}' number`,
+            );
+            setTimeout(() => {
+              setNotificationMessage(null);
+            }, 5000);
+          });
       setNewName('');
       setNewNumber('');
       return;
     }
 
-    PersonsService.create(personObject).then((response) => {
-      setPersons(persons.concat(response));
-    });
-    setPersons(persons.concat(personObject));
+    PersonsService.create(personObject)
+      .then((response) => {
+        setPersons(persons.concat(response));
+        setNotificationType(false);
+        setNotificationMessage(`'${personObject.name}' added`);
+        setTimeout(() => {
+          setNotificationMessage(null);
+        }, 5000);
+      })
+      .catch((error) => {
+        console.log(error);
+        setNotificationType(true);
+        setNotificationMessage(
+          `There has been a problem trying to add '${personObject.name}'`,
+        );
+        setTimeout(() => {
+          setNotificationMessage(null);
+        }, 5000);
+      });
     setNewName('');
     setNewNumber('');
   };
 
   const deletePerson = (id) => {
     window.confirm('Are you sure you want to delete this person?') &&
-      PersonsService.deletePerson(id).then(() => {
-        setPersons(persons.filter((person) => person.id !== id));
-      });
+      PersonsService.deletePerson(id)
+        .then(() => {
+          setPersons(persons.filter((person) => person.id !== id));
+          setNotificationType(false);
+          setNotificationMessage(
+            `${persons.find((p) => p.id === id)?.name} deleted`,
+          );
+          setTimeout(() => {
+            setNotificationMessage(null);
+          }, 5000);
+        })
+        .catch((error) => {
+          console.log(error);
+          setNotificationType(true);
+          setNotificationMessage(
+            `There has been a problem trying to delete ${persons.find((p) => p.id === id)?.name}`,
+          );
+          setTimeout(() => {
+            setNotificationMessage(null);
+          }, 5000);
+        });
   };
 
   return (
     <div>
-      <h2>Phonebook</h2>
+      <h1>Phonebook</h1>
+      <Notification
+        message={notificationMessage}
+        isErrorNotification={isErrorNotification}
+      />
+
       <Filter filterName={filterName} onChange={handleFilterName} />
 
       <h2>Add a new</h2>
