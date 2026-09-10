@@ -1,0 +1,112 @@
+const express = require('express');
+const cors = require('cors');
+const fs = require('fs');
+const path = require('path');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const dbPath = path.join(__dirname, '../db.json');
+
+const readDb = () => {
+  const data = fs.readFileSync(dbPath, 'utf8');
+  return JSON.parse(data);
+};
+
+const writeDb = (data) => {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+};
+
+const requestLogger = (request, response, next) => {
+  console.log('Method:', request.method);
+  console.log('Path:  ', request.path);
+  console.log('Body:  ', request.body);
+  console.log('---');
+  next();
+};
+
+app.use(requestLogger);
+
+app.get('/api/persons', (request, response) => {
+  const db = readDb();
+  response.json(db.persons);
+});
+
+app.get('/api/persons/:id', (request, response) => {
+  const db = readDb();
+  const person = db.persons.find((p) => p.id === request.params.id);
+
+  if (person) {
+    response.json(person);
+  } else {
+    response.status(404).end();
+  }
+});
+
+app.post('/api/persons', (request, response) => {
+  const body = request.body;
+
+  if (!body.name || !body.number) {
+    return response.status(400).json({
+      error: 'name or number missing',
+    });
+  }
+
+  const db = readDb();
+
+  const newPerson = {
+    name: body.name,
+    number: body.number,
+    id: Math.random().toString(16).slice(2),
+  };
+
+  db.persons.push(newPerson);
+  writeDb(db);
+
+  response.json(newPerson);
+});
+
+app.put('/api/persons/:id', (request, response) => {
+  const body = request.body;
+
+  if (!body.name || !body.number) {
+    return response.status(400).json({
+      error: 'name or number missing',
+    });
+  }
+
+  const db = readDb();
+  const person = db.persons.find((p) => p.id === request.params.id);
+
+  if (!person) {
+    return response.status(404).end();
+  }
+
+  person.name = body.name;
+  person.number = body.number;
+
+  writeDb(db);
+  response.json(person);
+});
+
+app.delete('/api/persons/:id', (request, response) => {
+  const db = readDb();
+  const index = db.persons.findIndex((p) => p.id === request.params.id);
+
+  if (index === -1) {
+    return response.status(404).end();
+  }
+
+  db.persons.splice(index, 1);
+  writeDb(db);
+
+  response.status(204).end();
+});
+
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
