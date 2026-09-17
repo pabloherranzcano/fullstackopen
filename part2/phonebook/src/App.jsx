@@ -94,9 +94,13 @@ const App = () => {
       })
       .catch((error) => {
         console.log(error);
+        const backendMessage =
+          error.response?.data?.error ??
+          `HTTP ${error.response?.status ?? 'unknown'}`;
+
         setNotificationType(true);
         setNotificationMessage(
-          `There has been a problem trying to add '${personObject.name}'`,
+          `There has been a problem trying to add '${personObject.name}' (code: ${backendMessage})`,
         );
         setTimeout(() => {
           setNotificationMessage(null);
