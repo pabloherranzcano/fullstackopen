@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan');
 const fs = require('fs');
 const path = require('path');
 
@@ -7,6 +8,15 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+morgan.token('body', (req, res) => {
+  return req.method === 'POST' ? JSON.stringify(req.body) : '';
+});
+
+// Log format (tiny) including the body for POST requests
+app.use(
+  morgan(':method :url :status :res[content-length] - :response-time ms :body'),
+);
 
 const dbPath = path.join(__dirname, '../db.json');
 
@@ -18,16 +28,6 @@ const readDb = () => {
 const writeDb = (data) => {
   fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
 };
-
-const requestLogger = (request, response, next) => {
-  console.log('Method:', request.method);
-  console.log('Path:  ', request.path);
-  console.log('Body:  ', request.body);
-  console.log('---');
-  next();
-};
-
-app.use(requestLogger);
 
 app.get('/api/persons', (request, response) => {
   const db = readDb();
@@ -48,9 +48,15 @@ app.get('/api/persons/:id', (request, response) => {
 app.post('/api/persons', (request, response) => {
   const body = request.body;
 
-  if (!body.name || !body.number) {
+  if (!body.name) {
     return response.status(400).json({
-      error: 'name or number missing',
+      error: 'name missing',
+    });
+  }
+
+  if (!body.number) {
+    return response.status(400).json({
+      error: 'number missing',
     });
   }
 
@@ -71,9 +77,15 @@ app.post('/api/persons', (request, response) => {
 app.put('/api/persons/:id', (request, response) => {
   const body = request.body;
 
-  if (!body.name || !body.number) {
+  if (!body.name) {
     return response.status(400).json({
-      error: 'name or number missing',
+      error: 'name missing',
+    });
+  }
+
+  if (!body.number) {
+    return response.status(400).json({
+      error: 'number missing',
     });
   }
 
