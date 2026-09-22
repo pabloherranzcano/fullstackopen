@@ -1,8 +1,15 @@
 const express = require('express');
+const cors = require('cors');
 const morgan = require('morgan');
-const app = express();
+const fs = require('fs');
+const path = require('path');
 
+const app = express();
+const distPath = path.join(__dirname, 'dist');
+
+app.use(cors());
 app.use(express.json());
+app.use(express.static(distPath));
 
 morgan.token('body', (req, res) => {
   return req.method === 'POST' ? JSON.stringify(req.body) : '';
@@ -13,49 +20,33 @@ app.use(
   morgan(':method :url :status :res[content-length] - :response-time ms :body'),
 );
 
-const PORT = 3001;
+const dbPath = path.join(__dirname, './db.json');
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+const readDb = () => {
+  const data = fs.readFileSync(dbPath, 'utf8');
+  return JSON.parse(data);
+};
 
-let persons = [
-  {
-    id: 1,
-    name: 'Arto Hellas',
-    number: '040-123456',
-  },
-  {
-    id: 2,
-    name: 'Ada Lovelace',
-    number: '39-44-5323523',
-  },
-  {
-    id: 3,
-    name: 'Dan Abramov',
-    number: '12-43-234345',
-  },
-  {
-    id: 4,
-    name: 'Mary Poppendieck',
-    number: '39-23-6423122',
-  },
-];
+const writeDb = (data) => {
+  fs.writeFileSync(dbPath, JSON.stringify(data, null, 2));
+};
 
 app.get('/info', (request, response) => {
+  const db = readDb();
   response.send(
-    `<p>Phonebook has info for ${persons.length} people</p>
+    `<p>Phonebook has info for ${db.persons.length} people</p>
     <p>${new Date()}</p>`,
   );
 });
 
 app.get('/api/persons', (request, response) => {
-  response.json(persons);
+  const db = readDb();
+  response.json(db.persons);
 });
 
 app.get('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id);
-  const person = persons.find((p) => p.id === id);
+  const db = readDb();
+  const person = db.persons.find((p) => p.id === request.params.id);
 
   if (person) {
     response.json(person);
@@ -64,21 +55,9 @@ app.get('/api/persons/:id', (request, response) => {
   }
 });
 
-app.delete('/api/persons/:id', (request, response) => {
-  const id = Number(request.params.id);
-  persons = persons.filter((p) => p.id !== id);
-
-  response.status(204).end();
-});
-
-const generateId = () => {
-  return Math.floor(Math.random() * 10000000);
-};
-
 app.post('/api/persons', (request, response) => {
   const body = request.body;
 
-  console.log(body);
   if (!body.name) {
     return response.status(400).json({
       error: 'name missing',
@@ -91,21 +70,77 @@ app.post('/api/persons', (request, response) => {
     });
   }
 
-  const nameExists = persons.find((p) => p.name === body.name);
+  const db = readDb();
 
-  if (nameExists) {
+  const newPerson = {
+    name: body.name,
+    number: body.number,
+    id: Math.random().toString(16).slice(2),
+  };
+
+  db.persons.push(newPerson);
+  writeDb(db);
+
+  response.json(newPerson);
+});
+
+app.put('/api/persons/:id', (request, response) => {
+  const body = request.body;
+
+  if (!body.name) {
     return response.status(400).json({
-      error: 'name must be unique',
+      error: 'name missing',
     });
   }
 
-  const newPerson = {
-    id: generateId(),
-    name: body.name,
-    number: body.number,
-  };
+  if (!body.number) {
+    return response.status(400).json({
+      error: 'number missing',
+    });
+  }
 
-  persons = persons.concat(newPerson);
+  const db = readDb();
+  const person = db.persons.find((p) => p.id === request.params.id);
 
-  response.json(newPerson);
+  if (!person) {
+    return response.status(404).end();
+  }
+
+  person.name = body.name;
+  person.number = body.number;
+
+  writeDb(db);
+  response.json(person);
+});
+
+app.delete('/api/persons/:id', (request, response) => {
+  const db = readDb();
+  const index = db.persons.findIndex((p) => p.id === request.params.id);
+
+  if (index === -1) {
+    return response.status(404).end();
+  }
+
+  db.persons.splice(index, 1);
+  writeDb(db);
+
+  response.status(204).end();
+});
+
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (request, response) => {
+  response.status(204).end();
+});
+
+app.use((request, response, next) => {
+  if (request.path.startsWith('/api') || request.path.startsWith('/.well-known')) {
+    return next();
+  }
+
+  response.sendFile(path.join(distPath, 'index.html'));
+});
+
+const PORT = process.env.PORT || 3001;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
