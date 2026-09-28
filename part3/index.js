@@ -4,8 +4,19 @@ const morgan = require('morgan');
 const fs = require('fs');
 const path = require('path');
 
+require('dotenv').config();
+
 const app = express();
 const distPath = path.join(__dirname, 'dist');
+const PORT = process.env.PORT || 3001;
+
+const mongoose = require('mongoose');
+const url = process.env.MONGODB_URI;
+
+const Person = require('./models/person');
+
+mongoose.set('strictQuery', false);
+mongoose.connect(url);
 
 app.use(cors());
 app.use(express.json());
@@ -40,19 +51,24 @@ app.get('/info', (request, response) => {
 });
 
 app.get('/api/persons', (request, response) => {
-  const db = readDb();
-  response.json(db.persons);
+  Person.find({}).then((persons) => {
+    response.json(persons);
+  });
 });
 
 app.get('/api/persons/:id', (request, response) => {
-  const db = readDb();
-  const person = db.persons.find((p) => p.id === request.params.id);
-
-  if (person) {
-    response.json(person);
-  } else {
-    response.status(404).end();
-  }
+  Person.findById(request.params.id)
+    .then((person) => {
+      if (person) {
+        response.json(person);
+      } else {
+        response.status(404).end();
+      }
+    })
+    .catch((error) => {
+      console.log(error);
+      response.status(400).send({ error: 'malformatted id' })
+    });
 });
 
 app.post('/api/persons', (request, response) => {
@@ -70,18 +86,15 @@ app.post('/api/persons', (request, response) => {
     });
   }
 
-  const db = readDb();
-
-  const newPerson = {
+  const newPerson = new Person({
     name: body.name,
     number: body.number,
     id: Math.random().toString(16).slice(2),
-  };
+  });
 
-  db.persons.push(newPerson);
-  writeDb(db);
-
-  response.json(newPerson);
+  newPerson.save().then((savedPerson) => {
+    response.json(savedPerson);
+  });
 });
 
 app.put('/api/persons/:id', (request, response) => {
@@ -127,19 +140,23 @@ app.delete('/api/persons/:id', (request, response) => {
   response.status(204).end();
 });
 
-app.get('/.well-known/appspecific/com.chrome.devtools.json', (request, response) => {
-  response.status(204).end();
-});
+app.get(
+  '/.well-known/appspecific/com.chrome.devtools.json',
+  (request, response) => {
+    response.status(204).end();
+  },
+);
 
 app.use((request, response, next) => {
-  if (request.path.startsWith('/api') || request.path.startsWith('/.well-known')) {
+  if (
+    request.path.startsWith('/api') ||
+    request.path.startsWith('/.well-known')
+  ) {
     return next();
   }
 
   response.sendFile(path.join(distPath, 'index.html'));
 });
-
-const PORT = process.env.PORT || 3001;
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
