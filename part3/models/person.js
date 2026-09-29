@@ -17,8 +17,22 @@ mongoose
   });
 
 const personSchema = new mongoose.Schema({
-  name: String,
-  number: Number,
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    minlength: [3, 'Name must be at least 3 characters long'],
+  },
+  number: {
+    type: String,
+    required: [true, 'Number is required'],
+    validate: {
+      validator: function (value) {
+        return /^\+\d{1,3}\s?\d{6,14}$/.test(value);
+      },
+      message:
+        'Number must include the country code, for example: +34 612345678',
+    },
+  },
 });
 
 personSchema.set('toJSON', {

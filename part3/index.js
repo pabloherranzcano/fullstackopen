@@ -61,18 +61,18 @@ app.get('/api/persons/:id', (request, response, next) => {
     .catch((error) => next(error));
 });
 
-app.post('/api/persons', (request, response) => {
+app.post('/api/persons', (request, response, next) => {
   const body = request.body;
 
   if (!body.name) {
     return response.status(400).json({
-      error: 'name missing',
+      error: 'Name is required',
     });
   }
 
   if (!body.number) {
     return response.status(400).json({
-      error: 'number missing',
+      error: 'Number is required',
     });
   }
 
@@ -87,27 +87,33 @@ app.post('/api/persons', (request, response) => {
     .then((savedPerson) => {
       response.json(savedPerson);
     })
-    .catch((error) => {
-      next(error);
-    });
+    .catch((error) => next(error));
 });
 
-app.put('/api/persons/:id', (request, response) => {
-  const body = request.body;
+app.put('/api/persons/:id', (request, response, next) => {
+  const { name, number } = request.body;
 
-  if (!body.name) {
+  if (!name) {
     return response.status(400).json({
-      error: 'name missing',
+      error: 'Name is required',
     });
   }
 
-  if (!body.number) {
+  if (!number) {
     return response.status(400).json({
-      error: 'number missing',
+      error: 'Number is required',
     });
   }
 
-  Person.findByIdAndUpdate(request.params.id, body, { returnDocument: 'after' })
+  Person.findByIdAndUpdate(
+    request.params.id,
+    { name, number },
+    {
+      returnDocument: 'after',
+      runValidators: true,
+      context: 'query',
+    },
+  )
     .then((updatedPerson) => {
       if (updatedPerson) {
         response.json(updatedPerson);
@@ -153,7 +159,11 @@ const errorHandler = (error, request, response, next) => {
   console.error(error.message);
 
   if (error.name === 'CastError') {
-    return response.status(400).send({ error: 'malformatted id' });
+    return response.status(400).json({ error: 'Invalid person ID' });
+  }
+
+  if (error.name === 'ValidationError') {
+    return response.status(400).json({ error: error.message });
   }
 
   next(error);

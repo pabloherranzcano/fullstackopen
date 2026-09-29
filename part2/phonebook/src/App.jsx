@@ -6,6 +6,41 @@ import PersonsService from './services/personService';
 import { useEffect } from 'react';
 import Notification from './components/Notification';
 
+const getBackendErrorMessage = (error, fallback = 'Something went wrong') => {
+  const backendMessage = error?.response?.data?.error ?? fallback;
+
+  if (backendMessage.includes('Name is required')) {
+    return 'Name is required.';
+  }
+
+  if (
+    backendMessage.includes('Name must be at least 3 characters long') ||
+    (backendMessage.includes('Path `name`') &&
+      backendMessage.includes('shorter than the minimum allowed length'))
+  ) {
+    return 'Name must be at least 3 characters long.';
+  }
+
+  if (backendMessage.includes('Number is required')) {
+    return 'Number is required.';
+  }
+
+  if (
+    backendMessage.includes('Number must include the country code') ||
+    (backendMessage.includes('Path `number`') &&
+      backendMessage.includes('shorter than the minimum allowed length')) ||
+    backendMessage.includes('Number must be at least 8 characters long')
+  ) {
+    return 'Number must include the country code, for example: +34 612345678.';
+  }
+
+  if (backendMessage.includes('Invalid person ID')) {
+    return 'Invalid person ID.';
+  }
+
+  return backendMessage;
+};
+
 const App = () => {
   const [persons, setPersons] = useState([]);
   const [newName, setNewName] = useState('');
@@ -69,10 +104,14 @@ const App = () => {
             }, 5000);
           })
           .catch((error) => {
-            console.log(error);
+            const message = getBackendErrorMessage(
+              error,
+              `There has been a problem trying to update '${personObject.name}' number`,
+            );
+
             setNotificationType(true);
             setNotificationMessage(
-              `There has been a problem trying to update '${personObject.name}' number`,
+              `There has been a problem trying to update '${personObject.name}' number. ${message}`,
             );
             setTimeout(() => {
               setNotificationMessage(null);
@@ -93,14 +132,14 @@ const App = () => {
         }, 5000);
       })
       .catch((error) => {
-        console.log(error);
-        const backendMessage =
-          error.response?.data?.error ??
-          `HTTP ${error.response?.status ?? 'unknown'}`;
+        const message = getBackendErrorMessage(
+          error,
+          `There has been a problem trying to add '${personObject.name}'`,
+        );
 
         setNotificationType(true);
-        setNotificationMessage(
-          `There has been a problem trying to add '${personObject.name}' (code: ${backendMessage})`,
+        setNotificationMessage(personObject.name ?
+          `There has been a problem trying to add '${personObject.name}'. ${message}` : message
         );
         setTimeout(() => {
           setNotificationMessage(null);
@@ -124,10 +163,14 @@ const App = () => {
           }, 5000);
         })
         .catch((error) => {
-          console.log(error);
+          const message = getBackendErrorMessage(
+            error,
+            `There has been a problem trying to delete ${persons.find((p) => p.id === id)?.name}`,
+          );
+
           setNotificationType(true);
           setNotificationMessage(
-            `There has been a problem trying to delete ${persons.find((p) => p.id === id)?.name}`,
+            `There has been a problem trying to delete ${persons.find((p) => p.id === id)?.name}. ${message}`,
           );
           setTimeout(() => {
             setNotificationMessage(null);
