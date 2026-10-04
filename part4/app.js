@@ -11,4 +11,5 @@ app.use(express.json())
 
 app.use('/api/blogs', BlogRouter)
 
+app.use(middleware.errorHandler);
 module.exports = app;
