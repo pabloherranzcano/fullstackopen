@@ -8,6 +8,35 @@ const requestLogger = (request, response, next) => {
   next();
 };
 
+const getTokenFrom = (request) => {
+  const authorization = request.get('authorization');
+  if (authorization && authorization.startsWith('Bearer ')) {
+    return authorization.replace('Bearer ', '');
+  }
+  return null;
+};
+
+const tokenExtractor = (request, response, next) => {
+  request.token = getTokenFrom(request);
+  next();
+};
+
+const userExtractor = (request, response, next) => {
+  request.token = getTokenFrom(request);
+  if (!request.token) {
+    request.user = null;
+    return next();
+  }
+
+  try {
+    request.user = jwt.verify(request.token, process.env.SECRET);
+    next();
+  } catch {
+    request.user = null;
+    next();
+  }
+}
+
 const unknownEndpoint = (request, response) => {
   response.status(404).send({ error: 'unknown endpoint' });
 };
@@ -23,7 +52,26 @@ const errorHandler = (error, request, response, next) => {
     return response.status(400).send({ error: error.message });
   }
 
+  if (
+    error.name === 'MongoServerError' &&
+    error.message.includes('E11000 duplicate key error')
+  ) {
+    return response
+      .status(400)
+      .json({ error: 'expected `username` to be unique' });
+  }
+
+  if (error.name === 'JsonWebTokenError') {
+    return response.status(401).json({ error: 'token invalid' });
+  }
+
+  if (error.name === 'TokenExpiredError') {
+    return response.status(401).json({
+      error: 'token expired',
+    });
+  }
+
   next(error);
 };
 
-module.exports = { requestLogger, unknownEndpoint, errorHandler };
+module.exports = { requestLogger, unknownEndpoint, errorHandler, tokenExtractor, userExtractor };

@@ -1,20 +1,44 @@
-const BlogRouter = require('express').Router();
+const blogRouter = require('express').Router();
 const Blog = require('../models/blog');
+const User = require('../models/user');
+const jwt = require('jsonwebtoken');
 
-BlogRouter.get('/', async (request, response) => {
-  const blogs = await Blog.find({});
+blogRouter.get('/', async (request, response) => {
+  const blogs = await Blog.find({}).populate('user', { username: 1, name: 1 });
 
   response.json(blogs);
 });
 
-BlogRouter.post('/', async (request, response, next) => {
-  const blog = new Blog(request.body);
+blogRouter.post('/', async (request, response, next) => {
+  const body = request.body;
+
+  const decodedToken = jwt.verify(request.token, process.env.SECRET);
+  if (!decodedToken.id) {
+    return response.status(401).json({
+      error: 'token invalid',
+    });
+  }
+  const user = await User.findById(decodedToken.id);
+
+  const blog = new Blog({
+    title: body.title,
+    author: body.author,
+    url: body.url,
+    likes: body.likes || 0,
+    user: user._id,
+  });
+
   const savedBlog = await blog.save();
+
+  if (user) {
+    user.blogs = user.blogs.concat(savedBlog._id);
+    await user.save();
+  }
 
   response.status(201).json(savedBlog);
 });
 
-BlogRouter.get('/:id', async (request, response, next) => {
+blogRouter.get('/:id', async (request, response, next) => {
   const blog = await Blog.findById(request.params.id);
 
   if (blog) {
@@ -24,13 +48,42 @@ BlogRouter.get('/:id', async (request, response, next) => {
   }
 });
 
-BlogRouter.delete('/:id', async (request, response, next) => {
+blogRouter.delete('/:id', async (request, response, next) => {
+  const blogToDelete = await Blog.findById(request.params.id);
+
+  if (!blogToDelete) {
+    return response.status(404).json({ error: 'blog not found' });
+  }
+
+  if (!request.token) {
+    return response.status(401).json({ error: 'token missing' });
+  }
+
+  let decodedToken;
+
+  try {
+    decodedToken = jwt.verify(request.token, process.env.SECRET);
+  } catch (error) {
+    return response.status(401).json({ error: 'token invalid' });
+  }
+  if (!decodedToken || !decodedToken.id) {
+    return response.status(401).json({ error: 'token invalid' });
+  }
+
+  const userId = blogToDelete.user.toString();
+
+  if (!userId || userId !== decodedToken.id) {
+    return response
+      .status(401)
+      .json({ error: 'unauthorized, only the creator can delete this blog' });
+  }
+
   await Blog.findByIdAndDelete(request.params.id);
 
   response.status(204).end();
 });
 
-BlogRouter.put('/:id', async (request, response, next) => {
+blogRouter.put('/:id', async (request, response, next) => {
   const { likes } = request.body;
 
   const updatedBlog = await Blog.findByIdAndUpdate(
@@ -46,11 +99,11 @@ BlogRouter.put('/:id', async (request, response, next) => {
   response.json(updatedBlog);
 });
 
-BlogRouter.get(
+blogRouter.get(
   '/.well-known/appspecific/com.chrome.devtools.json',
   (request, response) => {
     response.status(204).end();
   },
 );
 
-module.exports = BlogRouter;
+module.exports = blogRouter;

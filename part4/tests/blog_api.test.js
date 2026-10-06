@@ -7,6 +7,8 @@ const assert = require('assert');
 const api = supertest(app);
 const Blog = require('../models/blog');
 const helper = require('./test_helper');
+const bcrypt = require('bcrypt');
+const User = require('../models/user');
 
 before(async () => {
   await mongoose.connect(config.MONGODB_URI);
@@ -14,9 +16,7 @@ before(async () => {
 
 beforeEach(async () => {
   await Blog.deleteMany({});
-  await Promise.all(
-    helper.initialBlogs.map((blog) => new Blog(blog).save()),
-  );
+  await Promise.all(helper.initialBlogs.map((blog) => new Blog(blog).save()));
 });
 
 describe('when fetching blogs', () => {
@@ -57,6 +57,21 @@ describe('when fetching blogs', () => {
 });
 
 describe('when adding blogs', () => {
+  let token;
+
+  beforeEach(async () => {
+    const password = 'test-password';
+    const passwordHash = await bcrypt.hash(password, 10);
+    await User.deleteMany({});
+    await new User({ username: 'test-user', passwordHash }).save();
+
+    const loginResponse = await api
+      .post('/api/login')
+      .send({ username: 'test-user', password });
+
+    token = loginResponse.body.token;
+  });
+
   test('a valid blog can be added ', async () => {
     const newBlog = {
       title: 'How to use async/await',
@@ -67,6 +82,7 @@ describe('when adding blogs', () => {
 
     await api
       .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
       .send(newBlog)
       .expect(201)
       .expect('Content-Type', /application\/json/);
@@ -85,7 +101,11 @@ describe('when adding blogs', () => {
       url: 'https://example.com/async-await',
     };
 
-    await api.post('/api/blogs').send(newBlog).expect(201);
+    await api
+      .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
+      .send(newBlog)
+      .expect(201);
 
     const blogsAtEnd = await helper.blogsInDb();
     const addedBlog = blogsAtEnd.find((b) => b.title === newBlog.title);
@@ -97,7 +117,22 @@ describe('when adding blogs', () => {
       author: 'John Doe',
     };
 
-    await api.post('/api/blogs').send(newBlog).expect(400);
+    await api
+      .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
+      .send(newBlog)
+      .expect(400);
+  });
+
+  test('a blog cannot be added without a token', async () => {
+    const newBlog = {
+      title: 'How to use async/await',
+      author: 'John Doe',
+      url: 'https://example.com/async-await',
+      likes: 5,
+    };
+
+    await api.post('/api/blogs').send(newBlog).expect(401);
   });
 
   test('Blog without title is not added', async () => {
@@ -107,7 +142,11 @@ describe('when adding blogs', () => {
       likes: 5,
     };
 
-    await api.post('/api/blogs').send(newBlog).expect(400);
+    await api
+      .post('/api/blogs')
+      .set('Authorization', `Bearer ${token}`)
+      .send(newBlog)
+      .expect(400);
 
     const blogsAtEnd = await helper.blogsInDb();
     assert.strictEqual(blogsAtEnd.length, helper.initialBlogs.length);
@@ -143,17 +182,88 @@ describe('when managing existing blogs', () => {
   });
 
   test('a blog can be deleted', async () => {
-    const blogsAtStart = await helper.blogsInDb();
-    const blogToDelete = blogsAtStart[0];
+    const password = 'sekret';
+    const user = await new User({
+      username: 'root',
+      passwordHash: await bcrypt.hash(password, 10),
+    }).save();
 
-    await api.delete(`/api/blogs/${blogToDelete.id}`).expect(204);
+    const loginResponse = await api
+      .post('/api/login')
+      .send({ username: 'root', password });
 
-    const blogsAtEnd = await helper.blogsInDb();
+    const token = loginResponse.body.token;
 
-    const titles = blogsAtEnd.map((r) => r.title);
-    assert(!titles.includes(blogToDelete.title));
+    const blog = new Blog({
+      title: 'Blog del usuario root',
+      author: 'Root',
+      url: 'https://example.com/root-blog',
+      likes: 3,
+      user: user._id,
+    });
+    const savedBlog = await blog.save();
 
-    assert.strictEqual(blogsAtEnd.length, helper.initialBlogs.length - 1);
+    await api
+      .delete(`/api/blogs/${savedBlog.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(204);
+  });
+});
+
+describe('when there is initially one user in db', () => {
+  beforeEach(async () => {
+    await User.deleteMany({});
+
+    const passwordHash = await bcrypt.hash('sekret', 10);
+    const user = new User({ username: 'root', passwordHash });
+
+    await user.save();
+  });
+
+  test('creation succeeds with a fresh username', async () => {
+    const usersAtStart = await helper.usersInDb();
+
+    const newUser = {
+      username: 'mluukkai',
+      name: 'Matti Luukkainen',
+      password: 'salainen',
+    };
+
+    await api
+      .post('/api/users')
+      .send(newUser)
+      .expect(201)
+      .expect('Content-Type', /application\/json/);
+
+    const usersAtEnd = await helper.usersInDb();
+    assert.strictEqual(usersAtEnd.length, usersAtStart.length + 1);
+
+    const usernames = usersAtEnd.map((u) => u.username);
+    assert(usernames.includes(newUser.username));
+  });
+
+  test('creation fails when username has fewer than 3 characters', async () => {
+    const response = await api
+      .post('/api/users')
+      .send({ username: 'ab', name: 'Pablo', password: 'secret' })
+      .expect(400);
+
+    assert.strictEqual(
+      response.body.error,
+      'username must be at least 3 characters long',
+    );
+  });
+
+  test('creation fails when password has fewer than 3 characters', async () => {
+    const response = await api
+      .post('/api/users')
+      .send({ username: 'Pablo', name: 'Pablo Herranz', password: 'ab' })
+      .expect(400);
+
+    assert.strictEqual(
+      response.body.error,
+      'password must be at least 3 characters long',
+    );
   });
 });
 
