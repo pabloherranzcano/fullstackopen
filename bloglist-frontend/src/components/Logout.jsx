@@ -3,7 +3,7 @@ const Logout = ({ handleLogout }) => {
     <>
       <button onClick={handleLogout}>Logout</button>
     </>
-  );
-};
+  )
+}
 
-export default Logout;
+export default Logout

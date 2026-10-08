@@ -168,8 +168,20 @@ describe('when managing existing blogs', () => {
   });
 
   test('a blog likes can be updated', async () => {
-    const blogsAtStart = await helper.blogsInDb();
-    const blogToUpdate = blogsAtStart[0];
+    const passwordHash = await bcrypt.hash('sekret', 10);
+    const user = await new User({
+      username: 'likes-user',
+      name: 'Root User',
+      passwordHash,
+    }).save();
+
+    const blogToUpdate = await new Blog({
+      title: 'Blog con usuario',
+      author: 'Root User',
+      url: 'https://example.com/blog-con-usuario',
+      likes: 3,
+      user: user._id,
+    }).save();
 
     const updatedBlog = await api
       .put(`/api/blogs/${blogToUpdate.id}`)
@@ -179,6 +191,8 @@ describe('when managing existing blogs', () => {
 
     assert.strictEqual(updatedBlog.body.likes, blogToUpdate.likes + 1);
     assert.strictEqual(updatedBlog.body.title, blogToUpdate.title);
+    assert.strictEqual(typeof updatedBlog.body.user, 'object');
+    assert.strictEqual(updatedBlog.body.user.name, 'Root User');
   });
 
   test('a blog can be deleted', async () => {
